@@ -1,6 +1,7 @@
 package com.example.paymentstudy.vo;
 
 import lombok.Data;
+import lombok.experimental.Accessors;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -12,6 +13,7 @@ import java.util.Map;
  */
 
 @Data
+@Accessors(chain = true) //允许链式操作，这时的方法返回的都是Response类型
 public class Response {
     private Integer code;
     private String message;
