@@ -10,6 +10,7 @@ import com.wechat.pay.contrib.apache.httpclient.exception.HttpCodeException;
 import com.wechat.pay.contrib.apache.httpclient.exception.NotFoundException;
 import com.wechat.pay.contrib.apache.httpclient.util.PemUtil;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -32,6 +33,7 @@ import java.security.PrivateKey;
 @PropertySource("classpath:wxpay.properties") //读取配置文件
 @ConfigurationProperties(prefix = "wxpay") //读取wxpay节点
 @Data
+@Slf4j
 public class WxPayConfig {
 
     /**
@@ -92,6 +94,7 @@ public class WxPayConfig {
      */
     @Bean
     public Verifier getVerifier() throws GeneralSecurityException, IOException, HttpCodeException, NotFoundException {
+        log.info("获取签名验证器");
         // 获取证书管理器实例
         CertificatesManager certificatesManager = CertificatesManager.getInstance();
         //获取商户密钥
@@ -115,7 +118,7 @@ public class WxPayConfig {
      */
     @Bean
     public CloseableHttpClient getWxPayClient(Verifier verifier) {
-
+        log.info("获取微信http请求对象");
         //获取商户密钥
         PrivateKey privateKey = getPrivateKey(privateKeyPath);
         WechatPayHttpClientBuilder builder = WechatPayHttpClientBuilder.create()
