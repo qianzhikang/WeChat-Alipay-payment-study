@@ -10,6 +10,7 @@ import com.example.paymentstudy.mapper.OrderInfoMapper;
 import com.example.paymentstudy.mapper.ProductMapper;
 import com.example.paymentstudy.service.OrderInfoService;
 import com.example.paymentstudy.util.OrderNoUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -19,6 +20,7 @@ import java.util.List;
  * @author qianzhikang
  */
 @Service
+@Slf4j
 public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo> implements OrderInfoService {
 
 
@@ -83,6 +85,23 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
         QueryWrapper<OrderInfo> queryWrapper = new QueryWrapper<>();
         queryWrapper.orderByDesc("create_time");
         return baseMapper.selectList(queryWrapper);
+    }
+
+    /**
+     * 根据订单号修改支付状态
+     *
+     * @param orderNo 订单号
+     * @param orderStatus 订单状态枚举
+     */
+    @Override
+    public void updateStatusByOrderNo(Object orderNo, OrderStatus orderStatus) {
+        log.info("更新订单状态" );
+        QueryWrapper<OrderInfo> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("order_no",orderNo);
+        // 创建订单信息并且更新
+        OrderInfo orderInfo = new OrderInfo();
+        orderInfo.setOrderStatus(orderStatus.getType());
+        baseMapper.update(orderInfo,queryWrapper);
     }
 
     /**

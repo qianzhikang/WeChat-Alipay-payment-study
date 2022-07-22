@@ -6,10 +6,12 @@ import com.example.paymentstudy.enums.OrderStatus;
 import com.example.paymentstudy.enums.wxpay.WxApiType;
 import com.example.paymentstudy.enums.wxpay.WxNotifyType;
 import com.example.paymentstudy.service.OrderInfoService;
+import com.example.paymentstudy.service.PaymentInfoService;
 import com.example.paymentstudy.service.WxpayService;
 import com.example.paymentstudy.util.OrderNoUtils;
 import com.google.gson.Gson;
 import com.mysql.cj.util.StringUtils;
+import com.wechat.pay.contrib.apache.httpclient.notification.Notification;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
@@ -38,9 +40,12 @@ public class WxPayServiceImpl implements WxpayService {
     @Resource
     private CloseableHttpClient wxPayClient;
 
+    @Resource
+    private OrderInfoService orderInfoService;
+
 
     @Resource
-    OrderInfoService orderInfoService;
+    private PaymentInfoService paymentInfoService;
     /**
      * 下单
      * @param productId 商品id
@@ -117,5 +122,27 @@ public class WxPayServiceImpl implements WxpayService {
         } finally {
             response.close();
         }
+    }
+
+    /**
+     * 支付完成后订单的处理
+     *
+     * @param notification 微信支付结果通知
+     */
+    @Override
+    public void processOrder(Notification notification) {
+        //从notification中获取解密报文
+        String decryptData = notification.getDecryptData();
+
+        //解析json数据
+        Gson gson = new Gson();
+        HashMap hashMap = gson.fromJson(decryptData, HashMap.class);
+        Object orderNo = hashMap.get("out_trade_no");
+
+        //更新订单状态
+        orderInfoService.updateStatusByOrderNo(orderNo,OrderStatus.SUCCESS);
+
+        //记录支付日志
+        paymentInfoService.createPaymentInfo(notification);
     }
 }
