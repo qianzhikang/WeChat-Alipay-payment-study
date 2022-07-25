@@ -165,7 +165,7 @@ export default {
         console.log('查询订单状态：' + response.code)
 
         // 支付成功后的页面跳转
-        if (response.code === 0) {
+        if (response.code === 200) {
           console.log('清除定时器')
           clearInterval(this.timer)
           // 三秒后跳转到订单列表

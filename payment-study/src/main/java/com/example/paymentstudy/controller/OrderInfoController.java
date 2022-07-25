@@ -1,13 +1,11 @@
 package com.example.paymentstudy.controller;
 
 import com.example.paymentstudy.entity.OrderInfo;
+import com.example.paymentstudy.enums.OrderStatus;
 import com.example.paymentstudy.service.OrderInfoService;
 import com.example.paymentstudy.vo.Response;
 import io.swagger.annotations.Api;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import java.util.List;
@@ -26,9 +24,29 @@ public class OrderInfoController {
     @Resource
     private OrderInfoService orderInfoService;
 
+    /**
+     * 查询订单列表
+     * @return 统一返回结果
+     */
     @GetMapping("/list")
     public Response list(){
         List<OrderInfo> orderInfoList = orderInfoService.listOrderByCreateTimeDesc();
         return Response.success().data("list",orderInfoList);
+    }
+
+    /**
+     * 查询订单状态接口
+     * @param orderNo 订单号
+     * @return 统一返回结果
+     */
+    @GetMapping("/query-order-status/{orderNo}")
+    public Response queryOrderStatus(@PathVariable String orderNo){
+        String orderStatus = orderInfoService.getOrderStatus(orderNo);
+        if (OrderStatus.SUCCESS.getType().equals(orderStatus)) {
+            //支付成功
+            return Response.success().setMessage("支付成功");
+        }
+        //支付中状态码101
+        return Response.success().setCode(101).setMessage("支付中...");
     }
 }

@@ -24,6 +24,7 @@ import javax.annotation.Resource;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @Description TODO
@@ -46,6 +47,14 @@ public class WxPayServiceImpl implements WxpayService {
 
     @Resource
     private PaymentInfoService paymentInfoService;
+
+
+    /**
+     * 添加数据锁
+     */
+    private final ReentrantLock lock = new ReentrantLock();
+
+
     /**
      * 下单
      * @param productId 商品id
@@ -137,12 +146,27 @@ public class WxPayServiceImpl implements WxpayService {
         //解析json数据
         Gson gson = new Gson();
         HashMap hashMap = gson.fromJson(decryptData, HashMap.class);
-        Object orderNo = hashMap.get("out_trade_no");
+        String orderNo = (String) hashMap.get("out_trade_no");
 
-        //更新订单状态
-        orderInfoService.updateStatusByOrderNo(orderNo,OrderStatus.SUCCESS);
+        // 数据锁，处理由于网络原因，通知访问接口多次请求造成数据混乱
+        // 使用数据锁对数据进行并发控制
+        if (lock.tryLock()) {
+            try {
+                //处理微信重复通知
+                String orderStatus = orderInfoService.getOrderStatus(orderNo);
+                if (!OrderStatus.NOTPAY.getType().equals(orderStatus)){
+                    return;
+                }
 
-        //记录支付日志
-        paymentInfoService.createPaymentInfo(notification);
+                //更新订单状态
+                orderInfoService.updateStatusByOrderNo(orderNo,OrderStatus.SUCCESS);
+
+                //记录支付日志
+                paymentInfoService.createPaymentInfo(notification);
+            } finally {
+                // 需要主动释放锁
+                lock.unlock();
+            }
+        }
     }
 }

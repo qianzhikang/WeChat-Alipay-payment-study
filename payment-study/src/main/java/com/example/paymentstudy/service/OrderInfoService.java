@@ -36,4 +36,11 @@ public interface OrderInfoService extends IService<OrderInfo> {
      * @param orderStatus 订单状态枚举
      */
     void updateStatusByOrderNo(Object orderNo, OrderStatus orderStatus);
+
+    /**
+     * 获取订单状态
+     * @param orderNo 订单号
+     * @return 订单状态
+     */
+    String getOrderStatus(String orderNo);
 }
