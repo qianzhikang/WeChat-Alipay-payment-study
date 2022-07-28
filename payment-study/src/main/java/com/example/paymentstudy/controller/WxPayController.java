@@ -121,4 +121,16 @@ public class WxPayController {
         }
     }
 
+    /**
+     * 取消订单接口
+     * @param orderNo 订单号
+     * @return 统一返回类型
+     */
+    @PostMapping("/cancel/{orderNo}")
+    public Response cancel(@PathVariable String orderNo) throws IOException {
+        log.info("取消订单");
+        wxpayService.cancelOrder(orderNo);
+        return Response.success().setMessage("订单已取消");
+    }
+
 }

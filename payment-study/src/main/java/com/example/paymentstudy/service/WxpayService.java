@@ -24,4 +24,10 @@ public interface WxpayService {
      * @param notification 微信支付结果通知
      */
     void processOrder(Notification notification);
+
+    /**
+     * 取消订单
+     * @param orderNo 订单号
+     */
+    void cancelOrder(String orderNo) throws IOException;
 }
