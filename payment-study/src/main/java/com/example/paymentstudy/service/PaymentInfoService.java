@@ -9,7 +9,7 @@ public interface PaymentInfoService {
 
     /**
      * 记录支付日志
-     * @param notification 微信支付通知
+     * @param result 微信支付通知
      */
-    void createPaymentInfo(Notification notification);
+    void createPaymentInfo(String result);
 }

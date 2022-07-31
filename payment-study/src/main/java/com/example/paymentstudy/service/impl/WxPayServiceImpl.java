@@ -5,20 +5,25 @@ import com.example.paymentstudy.entity.OrderInfo;
 import com.example.paymentstudy.enums.OrderStatus;
 import com.example.paymentstudy.enums.wxpay.WxApiType;
 import com.example.paymentstudy.enums.wxpay.WxNotifyType;
+import com.example.paymentstudy.enums.wxpay.WxTradeState;
 import com.example.paymentstudy.service.OrderInfoService;
 import com.example.paymentstudy.service.PaymentInfoService;
 import com.example.paymentstudy.service.WxpayService;
 import com.example.paymentstudy.util.OrderNoUtils;
+import com.example.paymentstudy.vo.Response;
 import com.google.gson.Gson;
 import com.mysql.cj.util.StringUtils;
 import com.wechat.pay.contrib.apache.httpclient.notification.Notification;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 
 import javax.annotation.Resource;
 import java.io.IOException;
@@ -163,7 +168,7 @@ public class WxPayServiceImpl implements WxpayService {
                 orderInfoService.updateStatusByOrderNo(orderNo, OrderStatus.SUCCESS);
 
                 //记录支付日志
-                paymentInfoService.createPaymentInfo(notification);
+                paymentInfoService.createPaymentInfo(decryptData);
             } finally {
                 // 需要主动释放锁
                 lock.unlock();
@@ -183,6 +188,69 @@ public class WxPayServiceImpl implements WxpayService {
         //更新订单状态
         orderInfoService.updateStatusByOrderNo(orderNo, OrderStatus.CANCEL);
 
+    }
+
+    /**
+     * 查询订单
+     *
+     * @param orderNo 订单号
+     * @return 订单信息
+     */
+    @Override
+    public String queryOrder(String orderNo) throws IOException {
+        log.info("查单接口调用 ====》 {}", orderNo);
+        //拼接url
+        String format = String.format(WxApiType.ORDER_QUERY_BY_NO.getType(), orderNo);
+        String url = wxPayConfig.getDomain().concat(format);
+
+        //创建http post请求
+        HttpGet httpGet = new HttpGet(url);
+        httpGet.setHeader("Accept", "application/json");
+        CloseableHttpResponse response = wxPayClient.execute(httpGet);
+
+        try {
+            String bodyAsString = EntityUtils.toString(response.getEntity());
+            int statusCode = response.getStatusLine().getStatusCode();
+            if (statusCode == 200) {
+                log.info("成功，返回结果：" + bodyAsString);
+            } else if (statusCode == 204) {
+                log.info("成功");
+            } else {
+                log.info("失败，响应码" + statusCode + "，返回结果：" + bodyAsString);
+                throw new IOException("请求失败");
+            }
+            return bodyAsString;
+        } finally {
+            response.close();
+        }
+    }
+
+    /**
+     * 根据订单号查询微信支付接口，核实订单状态
+     * 若支付完成，则更新商户端订单状态
+     * 若支付未完成，则调用关单接口，并更新状态
+     *
+     * @param orderNo 订单号
+     */
+    @Override
+    public void checkOrderStatus(String orderNo) throws IOException {
+        log.warn("更具订单号核实订单状态 ====》 {}",orderNo);
+
+        //查询订单状态
+        String result = this.queryOrder(orderNo);
+        Gson gson = new Gson();
+        HashMap resultMap = gson.fromJson(result, HashMap.class);
+        //获取微信端订单状态
+        Object tradeState = resultMap.get("trade_state");
+
+        //判断订单状态
+        if (WxTradeState.SUCCESS.getType().equals(tradeState)) {
+            log.warn("核实订单已支付 ===》 {}",orderNo );
+            //确认已支付，修改订单状态
+            orderInfoService.updateStatusByOrderNo(orderNo,OrderStatus.SUCCESS);
+            //记录支付日志
+            paymentInfoService.createPaymentInfo(result);
+        }
     }
 
     /**
@@ -232,6 +300,6 @@ public class WxPayServiceImpl implements WxpayService {
         } finally {
             response.close();
         }
-
     }
+
 }

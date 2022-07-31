@@ -24,15 +24,13 @@ public class PaymentInfoServiceImpl extends ServiceImpl<PaymentInfoMapper, Payme
     /**
      * 记录支付日志
      *
-     * @param notification 微信支付通知
+     * @param result 微信支付通知
      */
     @Override
-    public void createPaymentInfo(Notification notification) {
+    public void createPaymentInfo(String result) {
         log.info("记录支付日志");
-        String decryptData = notification.getDecryptData();
         Gson gson = new Gson();
-        HashMap hashMap = gson.fromJson(decryptData, HashMap.class);
-
+        HashMap hashMap = gson.fromJson(result, HashMap.class);
         //订单号
         String orderNo = (String) hashMap.get("out_trade_no");
         //业务编号 对账用
@@ -55,7 +53,7 @@ public class PaymentInfoServiceImpl extends ServiceImpl<PaymentInfoMapper, Payme
         paymentInfo.setTradeState(tradeState);
         paymentInfo.setPayerTotal(payerTotal);
         //完整的支付结果通知
-        paymentInfo.setContent(decryptData);
+        paymentInfo.setContent(result);
 
         //入库
         baseMapper.insert(paymentInfo);

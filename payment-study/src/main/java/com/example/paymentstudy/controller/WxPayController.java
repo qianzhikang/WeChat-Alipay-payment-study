@@ -133,4 +133,11 @@ public class WxPayController {
         return Response.success().setMessage("订单已取消");
     }
 
+    @GetMapping("/query/{orderNo}")
+    public Response queryOrder(@PathVariable String orderNo) throws IOException {
+        log.info("查询订单 ===》 {}",orderNo);
+        String result = wxpayService.queryOrder(orderNo);
+        return Response.success().setMessage("查询成功").data("result",result);
+    }
+
 }

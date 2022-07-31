@@ -30,4 +30,19 @@ public interface WxpayService {
      * @param orderNo 订单号
      */
     void cancelOrder(String orderNo) throws IOException;
+
+    /**
+     * 查询订单
+     * @param orderNo 订单号
+     * @return 订单信息
+     */
+    String queryOrder(String orderNo) throws IOException;
+
+    /**
+     * 根据订单号查询微信支付接口，核实订单状态
+     * 若支付完成，则更新商户端订单状态
+     * 若支付未完成，则调用关单接口，并更新状态
+     * @param orderNo
+     */
+    void checkOrderStatus(String orderNo) throws IOException;
 }
