@@ -45,4 +45,26 @@ public interface WxpayService {
      * @param orderNo
      */
     void checkOrderStatus(String orderNo) throws IOException;
+
+    /**
+     * 退款
+     * @param orderNo 订单号
+     * @param reason 退款理由
+     * @throws IOException 异常
+     */
+    void refund(String orderNo, String reason) throws IOException;
+
+
+    /**
+     * 退款信息查询
+     * @param refundNo 退款编号
+     * @return 退款结果
+     */
+    String queryRefund(String refundNo) throws IOException;
+
+    /**
+     * 处理退款
+     * @param notification 微信支付通知（加密的）返回结果
+     */
+    void processRefund(Notification notification);
 }

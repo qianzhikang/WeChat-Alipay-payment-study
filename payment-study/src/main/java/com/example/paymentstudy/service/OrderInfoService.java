@@ -50,4 +50,11 @@ public interface OrderInfoService extends IService<OrderInfo> {
      * @return 符合条件的订单列表
      */
     List<OrderInfo> getNoPayOrderByDuration(int minutes);
+
+    /**
+     * 根据订单号查询订单
+     * @param orderNo 订单号
+     * @return 订单信息
+     */
+    OrderInfo getOrderByOrdernNo(String orderNo);
 }

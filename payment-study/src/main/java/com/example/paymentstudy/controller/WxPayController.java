@@ -93,7 +93,7 @@ public class WxPayController {
                     .withBody(body)
                     .build();
             // 验证与解密
-            NotificationHandler handler = new NotificationHandler(verifier,wxPayConfig.getApiV3Key().getBytes(StandardCharsets.UTF_8));
+            NotificationHandler handler = new NotificationHandler(verifier, wxPayConfig.getApiV3Key().getBytes(StandardCharsets.UTF_8));
             Notification notification = handler.parse((notificationRequest));
             log.info(notification.getDecryptData());
 
@@ -123,6 +123,7 @@ public class WxPayController {
 
     /**
      * 取消订单接口
+     *
      * @param orderNo 订单号
      * @return 统一返回类型
      */
@@ -133,11 +134,98 @@ public class WxPayController {
         return Response.success().setMessage("订单已取消");
     }
 
+    /**
+     * 查单接口
+     *
+     * @param orderNo 订单号
+     * @return 统一返回类型
+     * @throws IOException 异常
+     */
     @GetMapping("/query/{orderNo}")
     public Response queryOrder(@PathVariable String orderNo) throws IOException {
-        log.info("查询订单 ===》 {}",orderNo);
+        log.info("查询订单 ===》 {}", orderNo);
         String result = wxpayService.queryOrder(orderNo);
-        return Response.success().setMessage("查询成功").data("result",result);
+        return Response.success().setMessage("查询成功").data("result", result);
+    }
+
+    /**
+     * 退款接口
+     *
+     * @param orderNo 订单号
+     * @param reason  理由
+     * @return 统一返回结果
+     * @throws IOException 异常
+     */
+    @PostMapping("/refunds/{orderNo}/{reason}")
+    public Response refunds(@PathVariable String orderNo, @PathVariable String reason) throws IOException {
+        log.info("申请退款");
+        wxpayService.refund(orderNo, reason);
+        return Response.success();
+    }
+
+
+    /**
+     * 退款信息查询
+     *
+     * @param refundNo 退款编号
+     * @return 统一返回结果
+     * @throws IOException 异常
+     */
+    @GetMapping("/query-refund/{refundNo}")
+    public Response queryRefund(@PathVariable String refundNo) throws IOException {
+        log.info("查询退款");
+        String result = wxpayService.queryRefund(refundNo);
+        return Response.success().setMessage("查询成功").data("result", result);
+    }
+
+    @PostMapping("/refunds/notify")
+    public String refundsNotify(HttpServletRequest request, HttpServletResponse response) {
+        log.info("退款结果通知");
+        Gson gson = new Gson();
+        HashMap<String, String> resMap = new HashMap<>();
+
+        try {
+            String body = HttpUtils.readData(request);
+            HashMap<String, Object> bodyMap = gson.fromJson(body, HashMap.class);
+            String requestId = (String) bodyMap.get("id");
+            log.info("支付通知的id ===》{}", requestId);
+
+            // 构造等待验证的请求
+            // 获取请求头中微信平台证书序列号
+            String wechatPaySerial = request.getHeader("Wechatpay-Serial");
+            // 获取请求头中的随机串
+            String nonce = request.getHeader("Wechatpay-Nonce");
+            // 获取请求头中的时间戳
+            String timestamp = request.getHeader("Wechatpay-Timestamp");
+            // 获取请求头中的签名串
+            String signature = request.getHeader("Wechatpay-Signature");
+            NotificationRequest notificationRequest = new NotificationRequest.Builder().withSerialNumber(wechatPaySerial)
+                    .withNonce(nonce)
+                    .withTimestamp(timestamp)
+                    .withSignature(signature)
+                    .withBody(body)
+                    .build();
+            // 验证与解密
+            NotificationHandler handler = new NotificationHandler(verifier, wxPayConfig.getApiV3Key().getBytes(StandardCharsets.UTF_8));
+            Notification notification = handler.parse((notificationRequest));
+            log.info(notification.getDecryptData());
+
+            //处理退款单
+            wxpayService.processRefund(notification);
+
+            response.setStatus(200);
+            resMap.put("code","SUCCESS");
+            resMap.put("message","成功");
+            return gson.toJson(resMap);
+
+        } catch (Exception e) {
+            // 处理异常情况
+            log.error(e.getMessage());
+            response.setStatus(500);
+            resMap.put("code", "ERROR");
+            resMap.put("message", "失败");
+            return gson.toJson(resMap);
+        }
     }
 
 }

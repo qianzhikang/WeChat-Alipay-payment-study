@@ -2,15 +2,15 @@ package com.example.paymentstudy.service.impl;
 
 import com.example.paymentstudy.config.WxPayConfig;
 import com.example.paymentstudy.entity.OrderInfo;
+import com.example.paymentstudy.entity.RefundInfo;
 import com.example.paymentstudy.enums.OrderStatus;
 import com.example.paymentstudy.enums.wxpay.WxApiType;
 import com.example.paymentstudy.enums.wxpay.WxNotifyType;
 import com.example.paymentstudy.enums.wxpay.WxTradeState;
 import com.example.paymentstudy.service.OrderInfoService;
 import com.example.paymentstudy.service.PaymentInfoService;
+import com.example.paymentstudy.service.RefundInfoService;
 import com.example.paymentstudy.service.WxpayService;
-import com.example.paymentstudy.util.OrderNoUtils;
-import com.example.paymentstudy.vo.Response;
 import com.google.gson.Gson;
 import com.mysql.cj.util.StringUtils;
 import com.wechat.pay.contrib.apache.httpclient.notification.Notification;
@@ -22,9 +22,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-
+import org.springframework.transaction.annotation.Transactional;
 import javax.annotation.Resource;
 import java.io.IOException;
 import java.util.HashMap;
@@ -52,6 +50,9 @@ public class WxPayServiceImpl implements WxpayService {
 
     @Resource
     private PaymentInfoService paymentInfoService;
+
+    @Resource
+    private RefundInfoService refundInfoService;
 
 
     /**
@@ -234,7 +235,7 @@ public class WxPayServiceImpl implements WxpayService {
      */
     @Override
     public void checkOrderStatus(String orderNo) throws IOException {
-        log.warn("更具订单号核实订单状态 ====》 {}",orderNo);
+        log.warn("更具订单号核实订单状态 ====》 {}", orderNo);
 
         //查询订单状态
         String result = this.queryOrder(orderNo);
@@ -245,12 +246,141 @@ public class WxPayServiceImpl implements WxpayService {
 
         //判断订单状态
         if (WxTradeState.SUCCESS.getType().equals(tradeState)) {
-            log.warn("核实订单已支付 ===》 {}",orderNo );
+            log.warn("核实订单已支付 ===》 {}", orderNo);
             //确认已支付，修改订单状态
-            orderInfoService.updateStatusByOrderNo(orderNo,OrderStatus.SUCCESS);
+            orderInfoService.updateStatusByOrderNo(orderNo, OrderStatus.SUCCESS);
             //记录支付日志
             paymentInfoService.createPaymentInfo(result);
         }
+    }
+
+    /**
+     * 退款
+     *
+     * @param orderNo 订单号
+     * @param reason  退款理由
+     */
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public void refund(String orderNo, String reason) throws IOException {
+        log.info("创建退款单记录");
+        RefundInfo refundInfo = refundInfoService.createRefundByOrderNo(orderNo, reason);
+
+        log.info("调用退款API");
+        // TODO: 2022/7/31 调用退款API
+        String url = wxPayConfig.getDomain().concat(WxApiType.DOMESTIC_REFUNDS.getType());
+        HttpPost httpPost = new HttpPost(url);
+
+        //封装请求参数
+        Gson gson = new Gson();
+        HashMap paramsMap = new HashMap();
+        paramsMap.put("out_trade_no", orderNo);
+        paramsMap.put("out_refund_no", refundInfo.getRefundNo());
+        paramsMap.put("reason", reason);
+        paramsMap.put("notify_url", wxPayConfig.getNotifyDomain().concat(WxNotifyType.REFUND_NOTIFY.getType()));
+
+        Map amountMap = new HashMap();
+        amountMap.put("refund", refundInfo.getRefund());
+        amountMap.put("total", refundInfo.getTotalFee());
+        amountMap.put("currency", "CNY");
+
+        paramsMap.put("amount", amountMap);
+
+
+        String jsonParams = gson.toJson(paramsMap);
+        log.info("请求参数 ====> {}", jsonParams);
+
+        StringEntity entity = new StringEntity(jsonParams, "utf-8");
+        entity.setContentType("application/json");
+        httpPost.setEntity(entity);
+        httpPost.setHeader("Accept", "application/json");
+
+        CloseableHttpResponse response = wxPayClient.execute(httpPost);
+
+        try {
+            String bodyAsString = EntityUtils.toString(response.getEntity());
+            int statusCode = response.getStatusLine().getStatusCode();
+            if (statusCode == 200) {
+                log.info("退款成功，返回结果=====> {}", bodyAsString);
+            } else if (statusCode == 204) {
+                log.info("成功");
+            } else {
+                throw new RuntimeException("退款异常，状态码：" + statusCode + ",返回结果：" + bodyAsString);
+            }
+
+            //更新订单状态
+            orderInfoService.updateStatusByOrderNo(orderNo, OrderStatus.REFUND_PROCESSING);
+
+            refundInfoService.updateRefund(bodyAsString);
+        } finally {
+            response.close();
+        }
+
+
+    }
+
+    /**
+     * 退款信息查询
+     *
+     * @param refundNo 退款编号
+     * @return 退款结果
+     */
+    @Override
+    public String queryRefund(String refundNo) throws IOException {
+        log.info("查询退款结果调用 ====》 {}", refundNo);
+        String format = String.format(WxApiType.DOMESTIC_REFUNDS_QUERY.getType(), refundNo);
+        String url = wxPayConfig.getDomain().concat(format);
+
+        HttpGet httpGet = new HttpGet(url);
+        httpGet.setHeader("Accept", "application/json");
+
+        CloseableHttpResponse response = wxPayClient.execute(httpGet);
+        try {
+            String bodyAsString = EntityUtils.toString(response.getEntity());
+            int statusCode = response.getStatusLine().getStatusCode();
+            if (statusCode == 200) {
+                log.info("请求成功，返回结果：{}", bodyAsString);
+            } else if (statusCode == 204) {
+                log.info("请求成功");
+            } else {
+                throw new RuntimeException("查询退款异常，状态码：" + statusCode + "，返回结果：" + bodyAsString);
+            }
+            return bodyAsString;
+        } finally {
+            response.close();
+        }
+    }
+
+    /**
+     * 处理退款
+     *
+     * @param notification 微信支付通知（加密的）返回结果
+     */
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public void processRefund(Notification notification) {
+        log.info("退款通知处理");
+        String decryptData = notification.getDecryptData();
+        Gson gson = new Gson();
+        HashMap plainTextMap = gson.fromJson(decryptData, HashMap.class);
+        String orderNo = (String) plainTextMap.get("out_trade_no");
+        if (lock.tryLock()){
+            try {
+                String orderStatus = orderInfoService.getOrderStatus(orderNo);
+                if (!OrderStatus.REFUND_PROCESSING.getType().equals(orderStatus)){
+                    return;
+                }
+                //更新订单状态
+                orderInfoService.updateStatusByOrderNo(orderNo,OrderStatus.SUCCESS);
+                //更新退款单
+                refundInfoService.updateRefund(decryptData);
+            }finally {
+                //释放锁
+                lock.unlock();
+            }
+        }
+
+
     }
 
     /**
