@@ -23,6 +23,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import javax.annotation.Resource;
 import java.io.IOException;
 import java.util.HashMap;
@@ -43,6 +44,9 @@ public class WxPayServiceImpl implements WxpayService {
 
     @Resource
     private CloseableHttpClient wxPayClient;
+
+    @Resource
+    private CloseableHttpClient wxPayNoSignClient;
 
     @Resource
     private OrderInfoService orderInfoService;
@@ -267,7 +271,6 @@ public class WxPayServiceImpl implements WxpayService {
         RefundInfo refundInfo = refundInfoService.createRefundByOrderNo(orderNo, reason);
 
         log.info("调用退款API");
-        // TODO: 2022/7/31 调用退款API
         String url = wxPayConfig.getDomain().concat(WxApiType.DOMESTIC_REFUNDS.getType());
         HttpPost httpPost = new HttpPost(url);
 
@@ -364,23 +367,102 @@ public class WxPayServiceImpl implements WxpayService {
         Gson gson = new Gson();
         HashMap plainTextMap = gson.fromJson(decryptData, HashMap.class);
         String orderNo = (String) plainTextMap.get("out_trade_no");
-        if (lock.tryLock()){
+        if (lock.tryLock()) {
             try {
+                //已经执行退款，不需要执行后面流程
                 String orderStatus = orderInfoService.getOrderStatus(orderNo);
-                if (!OrderStatus.REFUND_PROCESSING.getType().equals(orderStatus)){
+                if (!OrderStatus.REFUND_PROCESSING.getType().equals(orderStatus)) {
                     return;
                 }
                 //更新订单状态
-                orderInfoService.updateStatusByOrderNo(orderNo,OrderStatus.SUCCESS);
+                orderInfoService.updateStatusByOrderNo(orderNo, OrderStatus.REFUND_SUCCESS);
                 //更新退款单
                 refundInfoService.updateRefund(decryptData);
-            }finally {
+            } finally {
                 //释放锁
                 lock.unlock();
             }
         }
 
 
+    }
+
+    /**
+     * 请求微信端，获取对应账单的下载url
+     *
+     * @param billDate 账单时间
+     * @param type     账单类型
+     * @return 账单下载url
+     */
+    @Override
+    public String queryBill(String billDate, String type) throws IOException {
+        log.warn("申请账单接口调用{}", billDate);
+        String url = "";
+        if ("tradebill".equals(type)) {
+            url = WxApiType.TRADE_BILLS.getType();
+        } else if ("fundflowbill".equals(type)) {
+            url = WxApiType.FUND_FLOW_BILLS.getType();
+        } else {
+            throw new RuntimeException("不支持的账单类型");
+        }
+
+        url = wxPayConfig.getDomain().concat(url).concat("?bill_date=").concat(billDate);
+        log.info("请求url= {}",url);
+
+        HttpGet httpGet = new HttpGet(url);
+        httpGet.addHeader("Accept","application/json");
+
+        CloseableHttpResponse response = wxPayClient.execute(httpGet);
+        try{
+            String bodyAsString = EntityUtils.toString(response.getEntity());
+            int statusCode = response.getStatusLine().getStatusCode();
+            if (statusCode == 200) {
+                log.info("请求成功，返回结果：{}", bodyAsString);
+            } else if (statusCode == 204) {
+                log.info("请求成功");
+            } else {
+                throw new RuntimeException("查询退款异常，状态码：" + statusCode + "，返回结果：" + bodyAsString);
+            }
+
+            Gson gson = new Gson();
+            HashMap<String,String> resultMap = gson.fromJson(bodyAsString, HashMap.class);
+            return resultMap.get("download_url");
+        }finally {
+            response.close();
+        }
+    }
+
+    /**
+     * 下载账单
+     *
+     * @param billDate 账单日期
+     * @param type     账单类型
+     * @return 账单数据
+     */
+    @Override
+    public String downloadBill(String billDate, String type) throws IOException {
+        log.info("下载账单接口调用 {} {}",billDate,type);
+
+        String downloadUrl = this.queryBill(billDate, type);
+
+        HttpGet httpGet = new HttpGet(downloadUrl);
+        httpGet.addHeader("Accept","application/json");
+
+        CloseableHttpResponse response = wxPayNoSignClient.execute(httpGet);
+        try {
+            String bodyAsString = EntityUtils.toString(response.getEntity());
+            int statusCode = response.getStatusLine().getStatusCode();
+            if (statusCode == 200) {
+                log.info("请求成功，返回结果：{}", bodyAsString);
+            } else if (statusCode == 204) {
+                log.info("请求成功");
+            } else {
+                throw new RuntimeException("查询退款异常，状态码：" + statusCode + "，返回结果：" + bodyAsString);
+            }
+            return bodyAsString;
+        }finally {
+            response.close();
+        }
     }
 
     /**

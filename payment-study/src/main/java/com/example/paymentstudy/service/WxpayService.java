@@ -67,4 +67,20 @@ public interface WxpayService {
      * @param notification 微信支付通知（加密的）返回结果
      */
     void processRefund(Notification notification);
+
+    /**
+     * 请求微信端，获取对应账单的下载url
+     * @param billDate 账单时间
+     * @param type 账单类型
+     * @return 账单下载url
+     */
+    String queryBill(String billDate, String type) throws IOException;
+
+    /**
+     * 下载账单
+     * @param billDate 账单日期
+     * @param type 账单类型
+     * @return 账单数据
+     */
+    String downloadBill(String billDate, String type) throws IOException;
 }

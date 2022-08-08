@@ -178,6 +178,12 @@ public class WxPayController {
         return Response.success().setMessage("查询成功").data("result", result);
     }
 
+    /**
+     * 退款结果通知
+     * @param request 请求
+     * @param response 响应
+     * @return 统一返回结果
+     */
     @PostMapping("/refunds/notify")
     public String refundsNotify(HttpServletRequest request, HttpServletResponse response) {
         log.info("退款结果通知");
@@ -228,4 +234,32 @@ public class WxPayController {
         }
     }
 
+
+    /**
+     * 这个接口用于测试获取url，下载账单接口直接调用获取账单url的方法
+     * 获取对应账单的下载url
+     * @param billDate 账单日期
+     * @param type 账单类型
+     * @return 统一返回类型
+     */
+    @GetMapping("/querybill/{billDate}/{type}")
+    public Response queryTradeBill(@PathVariable String billDate,@PathVariable String type) throws IOException {
+        log.info("获取账单url");
+        String downloadUrl = wxpayService.queryBill(billDate,type);
+        return Response.success().setMessage("获取账单url成功").data("downloadUrl",downloadUrl);
+
+    }
+
+    /**
+     * 下载账单
+     * @param billDate 账单日期
+     * @param type 账单类型
+     * @return 统一返回类型
+     */
+    @GetMapping("/downloadbill/{billDate}/{type}")
+    public Response downloadBill(@PathVariable String billDate,@PathVariable String type) throws IOException {
+        log.info("下载账单");
+        String result = wxpayService.downloadBill(billDate,type);
+        return Response.success().data("result",result);
+    }
 }
