@@ -86,14 +86,16 @@ public class WxPayController {
             String timestamp = request.getHeader("Wechatpay-Timestamp");
             // 获取请求头中的签名串
             String signature = request.getHeader("Wechatpay-Signature");
+            // 组装需要解密的通知对象
             NotificationRequest notificationRequest = new NotificationRequest.Builder().withSerialNumber(wechatPaySerial)
                     .withNonce(nonce)
                     .withTimestamp(timestamp)
                     .withSignature(signature)
                     .withBody(body)
                     .build();
-            // 验证与解密
+            // 创建用于解密的对象工具
             NotificationHandler handler = new NotificationHandler(verifier, wxPayConfig.getApiV3Key().getBytes(StandardCharsets.UTF_8));
+            // 验证与解密
             Notification notification = handler.parse((notificationRequest));
             log.info(notification.getDecryptData());
 

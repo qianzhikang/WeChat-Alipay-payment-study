@@ -421,7 +421,7 @@ public class WxPayServiceImpl implements WxpayService {
             } else if (statusCode == 204) {
                 log.info("请求成功");
             } else {
-                throw new RuntimeException("查询退款异常，状态码：" + statusCode + "，返回结果：" + bodyAsString);
+                throw new RuntimeException("查询账单异常，状态码：" + statusCode + "，返回结果：" + bodyAsString);
             }
 
             Gson gson = new Gson();
