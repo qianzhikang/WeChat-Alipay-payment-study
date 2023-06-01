@@ -1,5 +1,6 @@
 package com.example.paymentstudy;
 
+import com.example.paymentstudy.config.AlipayClientConfig;
 import com.example.paymentstudy.config.WxPayConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,8 +17,16 @@ class PaymentStudyApplicationTests {
     @Resource
     private WxPayConfig wxPayConfig;
 
+    @Resource
+    private AlipayClientConfig alipayClientConfig;
+
     @Test
     void contextLoads() {
+    }
+
+    @Test
+    void getAlipayParams(){
+        System.out.println(alipayClientConfig.getReturnUrl());
     }
 
 
